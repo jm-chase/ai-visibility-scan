@@ -1,0 +1,13 @@
+# never commit these
+.streamlit/secrets.toml
+*credentials*.json
+.env
+.env.*
+
+# runtime state
+data/
+__pycache__/
+*.pyc
+
+# local-only audit denylist - publishing it defeats its purpose
+.audit-denylist

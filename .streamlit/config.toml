@@ -1,0 +1,14 @@
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# Matches jameschase.co so the scan does not look like a different product.
+base = "light"
+primaryColor = "#1f6b47"
+backgroundColor = "#FDFDFD"
+secondaryBackgroundColor = "#F2F3F4"
+textColor = "#15181C"
+font = "monospace"
