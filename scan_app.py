@@ -155,32 +155,61 @@ DEFAULT_VALUE = {
 
 def run_scan(business: str, url: str, city: str, state: str,
              vertical: str, niche_word: str, on_step=None) -> dict:
-    """Run the free scan. on_step(fraction, label) is called before each real
-    unit of work so the UI can narrate genuine progress - every label below
-    corresponds to a request that is actually being made."""
+    """Run the free scan, asking every engine at once.
+
+    Sequentially this took 43 seconds for six calls. They are independent HTTP
+    requests that spend nearly all of that waiting, so running them together
+    costs the slowest single call - about 10 - rather than their sum. That is a
+    bigger win than any amount of progress animation, because the best way to
+    cover a wait is not to have one.
+
+    on_step(fraction, label) still narrates, now driven by completions rather
+    than by position in a loop.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     queries = [q.format(city=city, state=state, niche=niche_word)
                for q in QUERY_SETS[vertical]][:FREE_QUERIES]
     loc = ms._location(city, state)
-    total = len(queries) * len(FREE_ENGINES) + (1 if url else 0)
+    ENGINE_NAME = {"chatgpt": "ChatGPT", "perplexity": "Perplexity", "gemini": "Gemini"}
+
+    jobs = [(q, e) for q in queries for e in FREE_ENGINES]
+    total = len(jobs) + (1 if url else 0)
     done = 0
 
     def step(label: str) -> None:
         if on_step:
             on_step(min(done / max(total, 1), 1.0), label)
 
-    ENGINE_NAME = {"chatgpt": "ChatGPT", "perplexity": "Perplexity", "gemini": "Gemini"}
+    step(f"Asking {len(FREE_ENGINES)} engines {len(queries)} questions, all at once...")
+
+    def ask(job):
+        q, e = job
+        try:
+            return job, ms._default_query_fn(e, q, loc)
+        except Exception as ex:
+            return job, {"error": type(ex).__name__}
+
+    results: dict = {}
+    # One worker per call: these are I/O-bound, so the pool is sized to the
+    # work rather than to the CPU.
+    with ThreadPoolExecutor(max_workers=len(jobs) or 1) as pool:
+        futures = [pool.submit(ask, j) for j in jobs]
+        for fut in as_completed(futures):
+            job, r = fut.result()
+            results[job] = r
+            done += 1
+            q, e = job
+            named = [] if (not r or "error" in r) else ms.extract_names(r.get("text", ""))
+            step(f"{ENGINE_NAME.get(e, e)} answered “{q}” "
+                 f"— {len(named)} businesses named")
 
     slots, hits, rows = 0, 0, []
     for q in queries:
         row = {"query": q, "engines": {}}
         for engine in FREE_ENGINES:
-            step(f"Asking {ENGINE_NAME.get(engine, engine)}: “{q}”")
             slots += 1
-            try:
-                r = ms._default_query_fn(engine, q, loc)
-            except Exception as e:
-                row["engines"][engine] = {"error": f"{type(e).__name__}"}
-                continue
+            r = results.get((q, engine))
             if not r or "error" in r:
                 row["engines"][engine] = {"error": (r or {}).get("error", "no_data")}
                 continue
@@ -188,11 +217,7 @@ def run_scan(business: str, url: str, city: str, state: str,
             named = ms.extract_names(text)
             you = any(ms._match(business, n) for n in named)
             hits += 1 if you else 0
-            row["engines"][engine] = {"named": named, "you": you,
-                                      "excerpt": text[:400]}
-            done += 1
-            step(f"Read {len(named)} business names from "
-                 f"{ENGINE_NAME.get(engine, engine)}")
+            row["engines"][engine] = {"named": named, "you": you, "excerpt": text[:400]}
         rows.append(row)
 
     crawlers = {}
@@ -204,7 +229,7 @@ def run_scan(business: str, url: str, city: str, state: str,
         except Exception as e:
             crawlers = {"status": f"unreachable ({type(e).__name__})"}
         done += 1
-        step("Cross-referencing who was named against your business")
+    step("Cross-referencing who was named against your business")
 
     return {"business": business, "queries": queries, "rows": rows,
             "slots": slots, "hits": hits, "crawlers": crawlers,
@@ -377,7 +402,7 @@ with st.form("scan"):
     go = st.form_submit_button("Run the free scan", type="primary")
 
 st.caption(f"{FREE_QUERIES} questions across {len(FREE_ENGINES)} engines, asked live. "
-           f"Takes 40 to 60 seconds &mdash; the engines are being queried in real "
+           f"Takes about 15 seconds &mdash; the engines are being queried in real "
            f"time, not read from a cache.")
 
 if go:
