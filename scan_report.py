@@ -218,7 +218,7 @@ def deliver_lead(email: str, form: dict, res: dict, cause: str,
     at the next restart - so it is a log, not a destination. This POSTs the lead
     the moment it is captured, which is the only part that survives.
 
-    Destination is a secret, not a constant: LEAD_WEBHOOK_URL. Sherpa's n8n
+    Destination is a secret, not a constant: LEAD_WEBHOOK_URL. An n8n
     endpoint works, but routing jameschase.co leads through an employer's
     infrastructure is a choice worth making deliberately rather than inheriting
     from a hardcoded default.
