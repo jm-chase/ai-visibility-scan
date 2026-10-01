@@ -51,6 +51,7 @@ sys.path.insert(0, str(Path(__file__).parent / "prospecting"))
 
 import config                                    # noqa: E402
 import tech_stack                                # noqa: E402
+import sources                                   # noqa: E402
 from prospecting import market_scan as ms        # noqa: E402
 
 
@@ -217,7 +218,8 @@ def run_scan(business: str, url: str, city: str, state: str,
             named = ms.extract_names(text)
             you = any(ms._match(business, n) for n in named)
             hits += 1 if you else 0
-            row["engines"][engine] = {"named": named, "you": you, "excerpt": text[:400]}
+            row["engines"][engine] = {"named": named, "you": you, "excerpt": text[:400],
+                                      "sources": r.get("sources", [])}
         rows.append(row)
 
     crawlers = {}
@@ -231,8 +233,13 @@ def run_scan(business: str, url: str, city: str, state: str,
         done += 1
     step("Cross-referencing who was named against your business")
 
+    # The sources behind those answers are the placement targets: the finite set
+    # of pages that decide this market, ranked by where the business is absent.
+    placements = sources.harvest(rows, own_domain=url)
+
     return {"business": business, "queries": queries, "rows": rows,
             "slots": slots, "hits": hits, "crawlers": crawlers,
+            "placements": placements,
             "total_queries": len(QUERY_SETS[vertical])}
 
 
