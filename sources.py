@@ -43,6 +43,21 @@ DIRECTORY = (
 )
 ENCYCLOPEDIC = ("wikipedia.org", "wikidata.org", "britannica.com")
 
+# Vertical aggregators: sites that exist to rank the businesses in one category.
+# They were the blind spot in the first version, classified as editorial because
+# they are not obviously directories - and in two of six markets measured they
+# were the single biggest source of citations (Caring.com and A Place for Mom
+# took 41 of 105 citations in senior care). Getting listed and ranking inside
+# one of these is a different job from earning a mention, so it gets its own type.
+AGGREGATOR = (
+    "caring.com", "aplaceformom.com", "seniorly.com", "seniorliving.org",
+    "realself.com", "medicalspalocator.com", "fresha.com", "booksy.com", "vagaro.com",
+    "chrono24.com", "1stdibs.com", "bobswatches.com",
+    "zillow.com", "redfin.com", "realtor.com", "bankrate.com", "nerdwallet.com",
+    "lendingtree.com", "avvo.com", "findlaw.com", "lawyers.com", "justia.com",
+    "porch.com", "houzz.com", "homeadvisor.com", "wedding wire", "theknot.com",
+)
+
 
 def _domain(url: str) -> str:
     try:
@@ -57,6 +72,7 @@ def classify(url: str) -> str:
     u = url.lower()
     for group, label in (
         (ENCYCLOPEDIC, "encyclopedic"),
+        (AGGREGATOR, "aggregator"),
         (REVIEW, "review platform"),
         (FORUM, "forum"),
         (VIDEO, "video"),
